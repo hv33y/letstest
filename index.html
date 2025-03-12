@@ -3,49 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bookmarks List</title>
+    <title>Bookmarks Manager</title>
     <style>
+        /* Base Styles */
+        :root {
+            --background-color: #ffffff;
+            --text-color: #333333;
+            --card-background: #f5f5f5;
+            --card-border: #dddddd;
+            --primary-color: #0078d7;
+            --primary-hover: #005bb5;
+        }
+
+        [data-theme="dark"] {
+            --background-color: #1e1e1e;
+            --text-color: #f5f5f5;
+            --card-background: #2d2d2d;
+            --card-border: #444444;
+            --primary-color: #4dabf7;
+            --primary-hover: #228be6;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
         }
+
         h1 {
-            font-size: 24px;
+            font-size: 28px;
             margin-bottom: 20px;
+            color: var(--primary-color);
         }
+
+        h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+
         ul {
             list-style-type: none;
             padding: 0;
         }
+
         li {
             margin: 10px 0;
+            padding: 15px;
+            background-color: var(--card-background);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            transition: background-color 0.3s, border-color 0.3s;
         }
+
         a {
             text-decoration: none;
-            color: #0078d7;
+            color: var(--primary-color);
+            font-weight: bold;
         }
+
         a:hover {
             text-decoration: underline;
+            color: var(--primary-hover);
         }
+
         .upload-section {
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
+
+        .upload-section input[type="file"] {
+            display: none;
+        }
+
+        .upload-section label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .upload-section label:hover {
+            background-color: var(--primary-hover);
+        }
+
         .preview-url {
             margin-top: 20px;
-            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .recent-bookmarks {
+            margin-top: 40px;
+        }
+
+        .recent-bookmarks ul {
+            margin-top: 10px;
+        }
+
+        .recent-bookmarks li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .recent-bookmarks .details {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* System Theme Detection */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background-color: #1e1e1e;
+                --text-color: #f5f5f5;
+                --card-background: #2d2d2d;
+                --card-border: #444444;
+                --primary-color: #4dabf7;
+                --primary-hover: #228be6;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Bookmarks List</h1>
+    <button class="theme-toggle" id="theme-toggle">Toggle Theme</button>
+
+    <h1>Bookmarks Manager</h1>
     <div class="upload-section">
         <input type="file" id="file-input" accept=".html">
+        <label for="file-input">Upload Bookmarks File</label>
         <p>Upload a <code>bookmarks*.html</code> file to display and save its bookmarks.</p>
     </div>
     <div class="preview-url" id="preview-url"></div>
     <ul id="bookmarks-list"></ul>
+
+    <div class="recent-bookmarks">
+        <h2>Recently Created Bookmarks</h2>
+        <ul id="recent-bookmarks-list"></ul>
+    </div>
 
     <script>
         const workerUrl = "https://upload-worker.hv33y.workers.dev";
@@ -104,11 +220,40 @@
                     const { previewUrl } = await response.json();
                     const previewUrlElement = document.getElementById("preview-url");
                     previewUrlElement.innerHTML = `Preview URL: <a href="${previewUrl}" target="_blank">${previewUrl}</a>`;
+
+                    // Refresh the recently created bookmarks list
+                    fetchRecentBookmarks();
                 } else {
                     console.error("Error uploading file:", await response.text());
                 }
             } catch (error) {
                 console.error("Error uploading file:", error);
+            }
+        }
+
+        // Function to fetch and display recently created bookmarks
+        async function fetchRecentBookmarks() {
+            try {
+                const response = await fetch(`${workerUrl}/recent`);
+                const recentBookmarks = await response.json();
+
+                const recentBookmarksList = document.getElementById("recent-bookmarks-list");
+                recentBookmarksList.innerHTML = ""; // Clear previous list
+
+                recentBookmarks.forEach(bookmark => {
+                    const li = document.createElement("li");
+                    li.innerHTML = `
+                        <div>
+                            <a href="${bookmark.previewUrl}">${bookmark.name}</a>
+                            <div class="details">
+                                Uploaded on ${bookmark.uploadDate} from ${bookmark.ipAddress}
+                            </div>
+                        </div>
+                    `;
+                    recentBookmarksList.appendChild(li);
+                });
+            } catch (error) {
+                console.error("Error fetching recent bookmarks:", error);
             }
         }
 
@@ -122,6 +267,28 @@
                 alert("Please upload a valid 'bookmarks*.html' file.");
             }
         });
+
+        // Load recently created bookmarks when the page loads
+        window.onload = fetchRecentBookmarks;
+
+        // Theme Toggle
+        const themeToggle = document.getElementById("theme-toggle");
+        themeToggle.addEventListener("click", () => {
+            const currentTheme = document.documentElement.getAttribute("data-theme");
+            if (currentTheme === "dark") {
+                document.documentElement.setAttribute("data-theme", "light");
+            } else {
+                document.documentElement.setAttribute("data-theme", "dark");
+            }
+        });
+
+        // System Theme Detection
+        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+        if (systemTheme.matches) {
+            document.documentElement.setAttribute("data-theme", "dark");
+        } else {
+            document.documentElement.setAttribute("data-theme", "light");
+        }
     </script>
 </body>
 </html>
