@@ -38,11 +38,13 @@
     <h1>Bookmarks List</h1>
     <div class="upload-section">
         <input type="file" id="file-input" accept=".html">
-        <p>Upload a <code>bookmarks*.html</code> file to display its bookmarks.</p>
+        <p>Upload a <code>bookmarks*.html</code> file to display and save its bookmarks.</p>
     </div>
     <ul id="bookmarks-list"></ul>
 
     <script>
+        const workerUrl = "https://upload-worker.hv33y.workers.dev";
+
         // Function to parse bookmarks from uploaded file
         function parseBookmarks(file) {
             const reader = new FileReader();
@@ -60,6 +62,7 @@
                     return;
                 }
 
+                const bookmarks = [];
                 links.forEach(link => {
                     const li = document.createElement("li");
                     const a = document.createElement("a");
@@ -67,9 +70,39 @@
                     a.textContent = link.textContent;
                     li.appendChild(a);
                     bookmarksList.appendChild(li);
+
+                    // Save bookmark data
+                    bookmarks.push({
+                        href: link.href,
+                        title: link.textContent
+                    });
                 });
+
+                // Upload the file to the Cloudflare Worker
+                uploadFile(file, bookmarks);
             };
             reader.readAsText(file);
+        }
+
+        // Function to upload the file to the Cloudflare Worker
+        async function uploadFile(file, bookmarks) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("name", file.name);
+
+            try {
+                const response = await fetch(workerUrl, {
+                    method: "POST",
+                    body: formData,
+                });
+                if (response.ok) {
+                    console.log("File uploaded successfully!");
+                } else {
+                    console.error("Error uploading file:", await response.text());
+                }
+            } catch (error) {
+                console.error("Error uploading file:", error);
+            }
         }
 
         // Handle file upload
@@ -82,6 +115,27 @@
                 alert("Please upload a valid 'bookmarks*.html' file.");
             }
         });
+
+        // Fetch and display saved bookmarks
+        async function fetchSavedBookmarks() {
+            try {
+                const response = await fetch(workerUrl);
+                const files = await response.json();
+                const bookmarksList = document.getElementById("bookmarks-list");
+                bookmarksList.innerHTML = ""; // Clear previous bookmarks
+
+                files.forEach(file => {
+                    const li = document.createElement("li");
+                    li.textContent = `File: ${file.name}`;
+                    bookmarksList.appendChild(li);
+                });
+            } catch (error) {
+                console.error("Error fetching saved bookmarks:", error);
+            }
+        }
+
+        // Load saved bookmarks when the page loads
+        window.onload = fetchSavedBookmarks;
     </script>
 </body>
 </html>
