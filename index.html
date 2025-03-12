@@ -148,61 +148,98 @@
 </head>
 <body>
     <button class="theme-toggle" id="theme-toggle">Toggle Theme</button>
-
     <h1>Bookmarks Manager</h1>
+    
+    <!-- Upload Section -->
     <div class="upload-section">
         <input type="file" id="file-input" accept=".html">
         <label for="file-input">Upload Bookmarks File</label>
-        <p>Upload a <code>bookmarks*.html</code> file to display and save its bookmarks.</p>
+        <p>Upload a <code>bookmarks*.html</code> file</p>
     </div>
-    <div class="preview-url" id="preview-url"></div>
-    <ul id="bookmarks-list"></ul>
 
+    <!-- Recent Bookmarks Section -->
     <div class="recent-bookmarks">
         <h2>Recently Created Bookmarks</h2>
         <ul id="recent-bookmarks-list"></ul>
     </div>
 
+    <!-- Preview Dropdown Container -->
+    <div class="preview-container" id="preview-container"></div>
+
     <script>
-        const workerUrl = "https://server.zns9.com";
+        const workerUrl = "https://your-worker.your-subdomain.workers.dev";
 
-        // Function to parse bookmarks from uploaded file
-        function parseBookmarks(file) {
-            const reader = new FileReader();
-            reader.onload = function (event) {
-                const text = event.target.result;
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(text, "text/html");
-                const links = doc.querySelectorAll("a");
+        // Function to fetch and display recent bookmarks
+        async function fetchRecentBookmarks() {
+            try {
+                const response = await fetch(`${workerUrl}/recent`);
+                const recentBookmarks = await response.json();
+                const list = document.getElementById("recent-bookmarks-list");
+                list.innerHTML = "";
 
-                const bookmarksList = document.getElementById("bookmarks-list");
-                bookmarksList.innerHTML = ""; // Clear previous bookmarks
-
-                if (links.length === 0) {
-                    bookmarksList.innerHTML = "<li>No bookmarks found in the file.</li>";
-                    return;
-                }
-
-                const bookmarks = [];
-                links.forEach(link => {
+                recentBookmarks.forEach(bookmark => {
                     const li = document.createElement("li");
-                    const a = document.createElement("a");
-                    a.href = link.href;
-                    a.textContent = link.textContent;
-                    li.appendChild(a);
-                    bookmarksList.appendChild(li);
+                    li.innerHTML = `
+                        <div class="preview-header" data-preview-id="${bookmark.id}">
+                            <span>${bookmark.name}</span>
+                            <span class="preview-arrow">▼</span>
+                        </div>
+                    `;
+                    list.appendChild(li);
 
-                    // Save bookmark data
-                    bookmarks.push({
-                        href: link.href,
-                        title: link.textContent
+                    // Add click handler for dropdown
+                    li.querySelector('.preview-header').addEventListener('click', async (e) => {
+                        const previewId = e.currentTarget.dataset.previewId;
+                        await togglePreviewDropdown(previewId);
                     });
                 });
+            } catch (error) {
+                console.error("Error:", error);
+            }
+        }
 
-                // Upload the file to the Cloudflare Worker
-                uploadFile(file);
-            };
-            reader.readAsText(file);
+        // Function to toggle preview dropdown
+        async function togglePreviewDropdown(previewId) {
+            const container = document.getElementById("preview-container");
+            let dropdown = container.querySelector(`[data-preview-id="${previewId}"]`);
+
+            // Close all dropdowns first
+            container.querySelectorAll('.preview-dropdown').forEach(d => {
+                d.classList.remove('active');
+            });
+
+            if (!dropdown) {
+                // Create new dropdown
+                dropdown = document.createElement("div");
+                dropdown.className = "preview-dropdown";
+                dropdown.setAttribute("data-preview-id", previewId);
+                
+                // Fetch preview data
+                try {
+                    const response = await fetch(`${workerUrl}/preview/${previewId}`);
+                    const { name, bookmarks } = await response.json();
+                    
+                    // Build preview content
+                    const html = `
+                        <div class="preview-content">
+                            <h3>${name}</h3>
+                            <ul>
+                                ${bookmarks.map(b => `
+                                    <li><a href="${b.href}" target="_blank">${b.title}</a></li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    dropdown.innerHTML = html;
+                    container.appendChild(dropdown);
+                } catch (error) {
+                    console.error("Error loading preview:", error);
+                    return;
+                }
+            }
+
+            // Toggle active class
+            dropdown.classList.toggle('active');
         }
 
         // Function to upload the file to the Cloudflare Worker
