@@ -29,74 +29,59 @@
         a:hover {
             text-decoration: underline;
         }
+        .upload-section {
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <h1>Bookmarks List</h1>
+    <div class="upload-section">
+        <input type="file" id="file-input" accept=".html">
+        <p>Upload a <code>bookmarks*.html</code> file to display its bookmarks.</p>
+    </div>
     <ul id="bookmarks-list"></ul>
 
     <script>
-        // Function to fetch and parse bookmarks from a file
-        async function fetchBookmarks(file) {
-            const response = await fetch(file);
-            const text = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, "text/html");
-            const links = doc.querySelectorAll("a");
-            return Array.from(links).map(link => ({
-                href: link.href,
-                title: link.textContent
-            }));
-        }
-
-        // Function to fetch all files in the directory (requires server-side support)
-        async function fetchDirectoryListing() {
-            try {
-                const response = await fetch("./"); // Fetch the current directory
-                const text = await response.text();
+        // Function to parse bookmarks from uploaded file
+        function parseBookmarks(file) {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const text = event.target.result;
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(text, "text/html");
                 const links = doc.querySelectorAll("a");
-                return Array.from(links)
-                    .map(link => link.href)
-                    .filter(href => href.includes("bookmarks") && href.endsWith(".html"));
-            } catch (error) {
-                console.error("Error fetching directory listing:", error);
-                return [];
-            }
-        }
 
-        // Function to load all bookmark files and display them
-        async function loadBookmarks() {
-            const bookmarksList = document.getElementById("bookmarks-list");
+                const bookmarksList = document.getElementById("bookmarks-list");
+                bookmarksList.innerHTML = ""; // Clear previous bookmarks
 
-            // Fetch all matching bookmark files
-            const bookmarkFiles = await fetchDirectoryListing();
-            if (bookmarkFiles.length === 0) {
-                bookmarksList.innerHTML = "<li>No bookmark files found.</li>";
-                return;
-            }
-
-            // Load and display bookmarks from each file
-            for (const file of bookmarkFiles) {
-                try {
-                    const bookmarks = await fetchBookmarks(file);
-                    bookmarks.forEach(bookmark => {
-                        const li = document.createElement("li");
-                        const a = document.createElement("a");
-                        a.href = bookmark.href;
-                        a.textContent = bookmark.title;
-                        li.appendChild(a);
-                        bookmarksList.appendChild(li);
-                    });
-                } catch (error) {
-                    console.error(`Error loading ${file}:`, error);
+                if (links.length === 0) {
+                    bookmarksList.innerHTML = "<li>No bookmarks found in the file.</li>";
+                    return;
                 }
-            }
+
+                links.forEach(link => {
+                    const li = document.createElement("li");
+                    const a = document.createElement("a");
+                    a.href = link.href;
+                    a.textContent = link.textContent;
+                    li.appendChild(a);
+                    bookmarksList.appendChild(li);
+                });
+            };
+            reader.readAsText(file);
         }
 
-        // Load bookmarks when the page loads
-        window.onload = loadBookmarks;
+        // Handle file upload
+        const fileInput = document.getElementById("file-input");
+        fileInput.addEventListener("change", function (event) {
+            const file = event.target.files[0];
+            if (file && file.name.startsWith("bookmarks") && file.name.endsWith(".html")) {
+                parseBookmarks(file);
+            } else {
+                alert("Please upload a valid 'bookmarks*.html' file.");
+            }
+        });
     </script>
 </body>
 </html>
