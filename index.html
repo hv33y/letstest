@@ -92,28 +92,43 @@
             background-color: var(--primary-hover);
         }
 
-        .preview-url {
+        .preview-container {
             margin-top: 20px;
-            font-size: 16px;
         }
 
-        .recent-bookmarks {
-            margin-top: 40px;
+        .preview-dropdown {
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            margin: 10px 0;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease-out;
         }
 
-        .recent-bookmarks ul {
-            margin-top: 10px;
+        .preview-dropdown.active {
+            max-height: 1000px; /* Adjust based on content */
         }
 
-        .recent-bookmarks li {
+        .preview-header {
+            padding: 10px 15px;
+            background-color: var(--card-background);
+            cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .recent-bookmarks .details {
-            font-size: 14px;
-            color: #666;
+        .preview-content {
+            padding: 15px;
+            background-color: var(--background-color);
+        }
+
+        .preview-arrow {
+            transition: transform 0.3s;
+        }
+
+        .preview-dropdown.active .preview-arrow {
+            transform: rotate(180deg);
         }
 
         .theme-toggle {
@@ -167,9 +182,74 @@
     <div class="preview-container" id="preview-container"></div>
 
     <script>
-        const workerUrl = "https://server.zns9.com";
+        const workerUrl = "https://your-worker.your-subdomain.workers.dev";
 
-        // Function to fetch and display recent bookmarks
+        // Function to parse bookmarks from uploaded file
+        function parseBookmarks(file) {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const text = event.target.result;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, "text/html");
+                const links = doc.querySelectorAll("a");
+
+                const bookmarksList = document.getElementById("bookmarks-list");
+                bookmarksList.innerHTML = ""; // Clear previous bookmarks
+
+                if (links.length === 0) {
+                    bookmarksList.innerHTML = "<li>No bookmarks found in the file.</li>";
+                    return;
+                }
+
+                const bookmarks = [];
+                links.forEach(link => {
+                    const li = document.createElement("li");
+                    const a = document.createElement("a");
+                    a.href = link.href;
+                    a.textContent = link.textContent;
+                    li.appendChild(a);
+                    bookmarksList.appendChild(li);
+
+                    // Save bookmark data
+                    bookmarks.push({
+                        href: link.href,
+                        title: link.textContent
+                    });
+                });
+
+                // Upload the file to the Cloudflare Worker
+                uploadFile(file);
+            };
+            reader.readAsText(file);
+        }
+
+        // Function to upload the file to the Cloudflare Worker
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("name", file.name);
+
+            try {
+                const response = await fetch(workerUrl, {
+                    method: "POST",
+                    body: formData,
+                });
+                if (response.ok) {
+                    const { previewUrl } = await response.json();
+                    const previewUrlElement = document.getElementById("preview-url");
+                    previewUrlElement.innerHTML = `Preview URL: <a href="${previewUrl}" target="_blank">${previewUrl}</a>`;
+
+                    // Refresh the recently created bookmarks list
+                    fetchRecentBookmarks();
+                } else {
+                    console.error("Error uploading file:", await response.text());
+                }
+            } catch (error) {
+                console.error("Error uploading file:", error);
+            }
+        }
+
+        // Function to fetch and display recently created bookmarks
         async function fetchRecentBookmarks() {
             try {
                 const response = await fetch(`${workerUrl}/recent`);
@@ -240,58 +320,6 @@
 
             // Toggle active class
             dropdown.classList.toggle('active');
-        }
-
-        // Function to upload the file to the Cloudflare Worker
-        async function uploadFile(file) {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("name", file.name);
-
-            try {
-                const response = await fetch(workerUrl, {
-                    method: "POST",
-                    body: formData,
-                });
-                if (response.ok) {
-                    const { previewUrl } = await response.json();
-                    const previewUrlElement = document.getElementById("preview-url");
-                    previewUrlElement.innerHTML = `Preview URL: <a href="${previewUrl}" target="_blank">${previewUrl}</a>`;
-
-                    // Refresh the recently created bookmarks list
-                    fetchRecentBookmarks();
-                } else {
-                    console.error("Error uploading file:", await response.text());
-                }
-            } catch (error) {
-                console.error("Error uploading file:", error);
-            }
-        }
-
-        // Function to fetch and display recently created bookmarks
-        async function fetchRecentBookmarks() {
-            try {
-                const response = await fetch(`${workerUrl}/recent`);
-                const recentBookmarks = await response.json();
-
-                const recentBookmarksList = document.getElementById("recent-bookmarks-list");
-                recentBookmarksList.innerHTML = ""; // Clear previous list
-
-                recentBookmarks.forEach(bookmark => {
-                    const li = document.createElement("li");
-                    li.innerHTML = `
-                        <div>
-                            <a href="${bookmark.previewUrl}">${bookmark.name}</a>
-                            <div class="details">
-                                Uploaded on ${bookmark.uploadDate} from ${bookmark.ipAddress}
-                            </div>
-                        </div>
-                    `;
-                    recentBookmarksList.appendChild(li);
-                });
-            } catch (error) {
-                console.error("Error fetching recent bookmarks:", error);
-            }
         }
 
         // Handle file upload
